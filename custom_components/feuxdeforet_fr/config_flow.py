@@ -12,11 +12,7 @@ from .const import (
     CONF_CREATE_DEPARTMENT_SENSORS,
     CONF_CREATE_FIRE_GEOLOCATIONS,
     CONF_CREATE_REGION_SENSORS,
-    CONF_GEOJSON_LAST_UPDATE,
-    CONF_GEOJSON_NONCE,
     CONF_POLL_INTERVAL,
-    DEFAULT_GEOJSON_LAST_UPDATE,
-    DEFAULT_GEOJSON_NONCE,
     DEFAULT_OPTIONS,
     DOMAIN,
     MIN_POLL_INTERVAL,
@@ -107,16 +103,6 @@ def _options_schema(
                 CONF_CREATE_FIRE_GEOLOCATIONS,
                 default=defaults.get(CONF_CREATE_FIRE_GEOLOCATIONS, True),
             ): bool,
-            vol.Required(
-                CONF_GEOJSON_LAST_UPDATE,
-                default=defaults.get(
-                    CONF_GEOJSON_LAST_UPDATE, DEFAULT_GEOJSON_LAST_UPDATE
-                ),
-            ): str,
-            vol.Required(
-                CONF_GEOJSON_NONCE,
-                default=defaults.get(CONF_GEOJSON_NONCE, DEFAULT_GEOJSON_NONCE),
-            ): str,
         }
     )
     return vol.Schema(fields)

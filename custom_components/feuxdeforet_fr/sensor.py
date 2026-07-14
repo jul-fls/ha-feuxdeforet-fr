@@ -20,6 +20,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     CONF_CREATE_DEPARTMENT_SENSORS,
     CONF_CREATE_REGION_SENSORS,
+    DEVICE_ID,
+    DEVICE_NAME,
     DOMAIN,
     MANUFACTURER,
 )
@@ -36,6 +38,7 @@ def _empty_attrs(coordinator: FeuxDeForetCoordinator) -> dict[str, Any]:
 class FeuxDeForetSensorDescription(SensorEntityDescription):
     """Describe a Feux de Foret sensor."""
 
+    display_name: str
     value_fn: Callable[[FeuxDeForetCoordinator], Any]
     attrs_fn: Callable[[FeuxDeForetCoordinator], dict[str, Any]] = _empty_attrs
 
@@ -43,77 +46,77 @@ class FeuxDeForetSensorDescription(SensorEntityDescription):
 NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
     FeuxDeForetSensorDescription(
         key="current_fires",
-        translation_key="current_fires",
+        display_name="Feux en cours",
         icon="mdi:fire-alert",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_24h",
-        translation_key="fires_24h",
+        display_name="Feux sur 24h",
         icon="mdi:fire-clock",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_24h"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_7d",
-        translation_key="fires_7d",
+        display_name="Feux sur 7 jours",
         icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_7d"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_30d",
-        translation_key="fires_30d",
+        display_name="Feux sur 30 jours",
         icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_30d"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_year",
-        translation_key="fires_year",
+        display_name="Feux cette année",
         icon="mdi:calendar-fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_year"),
     ),
     FeuxDeForetSensorDescription(
         key="weak_risk_zones",
-        translation_key="weak_risk_zones",
-        icon="mdi:map-marker-radius",
+        display_name="Zones risque faible",
+        icon="mdi:map-marker-radius-outline",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "weak_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="moderate_risk_zones",
-        translation_key="moderate_risk_zones",
+        display_name="Zones risque modéré",
         icon="mdi:map-marker-radius",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "moderate_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="high_risk_zones",
-        translation_key="high_risk_zones",
-        icon="mdi:map-marker-alert",
+        display_name="Zones risque élevé",
+        icon="mdi:map-marker-alert-outline",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "high_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="very_high_risk_zones",
-        translation_key="very_high_risk_zones",
+        display_name="Zones risque très élevé",
         icon="mdi:map-marker-alert",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "very_high_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="extreme_risk_zones",
-        translation_key="extreme_risk_zones",
+        display_name="Zones risque extrême",
         icon="mdi:map-marker-alert",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "extreme_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="mapped_fires",
-        translation_key="mapped_fires",
+        display_name="Feux cartographiés",
         icon="mdi:map-marker-multiple",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: len(coordinator.data.fires),
@@ -155,15 +158,15 @@ async def async_setup_entry(
 class FeuxDeForetBaseSensor(CoordinatorEntity[FeuxDeForetCoordinator], SensorEntity):
     """Base Feux de Foret sensor."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
 
     @property
     def device_info(self) -> dict[str, Any]:
         """Return device info."""
         return {
-            "identifiers": {(DOMAIN, "france")},
+            "identifiers": {(DOMAIN, DEVICE_ID)},
             "manufacturer": MANUFACTURER,
-            "name": "Feux de Foret France",
+            "name": DEVICE_NAME,
         }
 
 
@@ -180,6 +183,7 @@ class FeuxDeForetNationalSensor(FeuxDeForetBaseSensor):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
+        self._attr_name = description.display_name
         self._attr_unique_id = f"{DOMAIN}_{description.key}"
 
     @property
@@ -196,7 +200,6 @@ class FeuxDeForetNationalSensor(FeuxDeForetBaseSensor):
 class FeuxDeForetZoneSensor(FeuxDeForetBaseSensor):
     """Fire count sensor for a region or department."""
 
-    _attr_icon = "mdi:map-marker-radius"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
@@ -210,12 +213,10 @@ class FeuxDeForetZoneSensor(FeuxDeForetBaseSensor):
         self.zone_type = zone_type
         self.zone_key = zone_key
         self._attr_unique_id = f"{DOMAIN}_{zone_type}_{zone_key}_fires"
-        self._attr_translation_key = f"{zone_type}_fires"
-
-    @property
-    def translation_placeholders(self) -> dict[str, str]:
-        """Return translation placeholders."""
-        return {"zone": self._zone.name}
+        self._attr_name = self._build_name()
+        self._attr_icon = (
+            "mdi:map" if self.zone_type == "region" else "mdi:map-marker-radius"
+        )
 
     @property
     def native_value(self) -> int:
@@ -252,6 +253,11 @@ class FeuxDeForetZoneSensor(FeuxDeForetBaseSensor):
             else self.coordinator.data.department_counts
         )
         return zones[self.zone_key]
+
+    def _build_name(self) -> str:
+        """Build a readable zone sensor name."""
+        prefix = "Région" if self.zone_type == "region" else "Département"
+        return f"{prefix} {self._zone.name} - feux actifs"
 
 
 def _stats_value(coordinator: FeuxDeForetCoordinator, attr: str) -> int | None:

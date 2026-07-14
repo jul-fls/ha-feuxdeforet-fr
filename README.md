@@ -229,5 +229,4 @@ Referer: https://feuxdeforet.fr/fdf/cartographie/
 Accept: application/geo+json, application/json
 ```
 
-If feuxdeforet.fr changes its frontend/proxy behavior, update the integration options or the library client accordingly.
-
+If feuxdeforet.fr changes its frontend/proxy behavior, update the integration or the library client accordingly.

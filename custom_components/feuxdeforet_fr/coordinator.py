@@ -9,16 +9,14 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 from pyfeuxdeforet_fr import FeuxDeForetClient
 
 from .const import (
-    CONF_GEOJSON_LAST_UPDATE,
-    CONF_GEOJSON_NONCE,
     CONF_POLL_INTERVAL,
-    DEFAULT_GEOJSON_LAST_UPDATE,
-    DEFAULT_GEOJSON_NONCE,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
+    GEOJSON_NONCE,
     MIN_POLL_INTERVAL,
 )
 from .helpers import (
@@ -65,14 +63,8 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
                     self.client.get_stats(),
                     self.client.get_home(),
                     self.client.get_geojson(
-                        last_update=self.entry.options.get(
-                            CONF_GEOJSON_LAST_UPDATE,
-                            DEFAULT_GEOJSON_LAST_UPDATE,
-                        ),
-                        nonce=self.entry.options.get(
-                            CONF_GEOJSON_NONCE,
-                            DEFAULT_GEOJSON_NONCE,
-                        ),
+                        last_update=self._geojson_last_update(),
+                        nonce=GEOJSON_NONCE,
                         headers={
                             "Accept": "application/geo+json, application/json",
                             "Referer": "https://feuxdeforet.fr/fdf/cartographie/",
@@ -98,3 +90,9 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
             region_counts=build_region_counts(regions, fires),
             department_counts=build_department_counts(regions, fires),
         )
+
+    @staticmethod
+    def _geojson_last_update() -> str:
+        """Return the frontend-style last_update parameter for this refresh."""
+        refresh_time = dt_util.start_of_local_day() - timedelta(days=1)
+        return refresh_time.replace(microsecond=0).isoformat()

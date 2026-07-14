@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
+from dataclasses import replace
 from typing import Any
 
 from .models import FireFeature, ZoneCount
 
 ACTIVE_STATES = {"attaque", "en_cours", "actif", "non_maitrise"}
 PUBLISHED_STATUS = "valide_publie"
+_FIRE_SLUG_SUFFIX = re.compile(r"-\d{2}-\d{2}-\d{4}-\d+$")
+_DEPARTMENT_CODE_SUFFIX = re.compile(r"-(\d{2,3}|2a|2b)$", re.IGNORECASE)
 
 
 def extract_geojson_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -32,11 +36,20 @@ def features_from_geojson(
     if geojson is None:
         return {}
 
+    parsed_fires = [
+        parsed
+        for feature in geojson.get("features", [])
+        if (parsed := feature_from_geojson_feature(feature, department_to_region))
+        is not None
+    ]
+    label_counts = Counter(fire.display_name for fire in parsed_fires)
+
     fires: dict[str, FireFeature] = {}
-    for feature in geojson.get("features", []):
-        parsed = feature_from_geojson_feature(feature, department_to_region)
-        if parsed is not None:
-            fires[parsed.id] = parsed
+    for fire in parsed_fires:
+        display_name = fire.display_name
+        if label_counts[display_name] > 1:
+            display_name = f"{display_name} #{fire.id}"
+        fires[fire.id] = replace(fire, display_name=display_name)
     return fires
 
 
@@ -56,6 +69,14 @@ def feature_from_geojson_feature(
     latitude = float(coordinates[1])
     url = properties.get("url")
     department_slug = department_slug_from_url(url)
+    municipality = municipality_from_url(url)
+    department_code = department_code_from_slug(department_slug)
+    display_name = fire_display_name(
+        fire_id=str(fire_id),
+        municipality=municipality,
+        department_code=department_code,
+        fallback=department_slug or department_to_region.get(department_slug or ""),
+    )
     return FireFeature(
         id=str(fire_id),
         latitude=latitude,
@@ -65,19 +86,68 @@ def feature_from_geojson_feature(
         url=str(url) if url else None,
         department_slug=department_slug,
         region_slug=department_to_region.get(department_slug or ""),
+        municipality=municipality,
+        department_code=department_code,
+        display_name=display_name,
         properties=dict(properties),
     )
 
 
 def department_slug_from_url(url: object) -> str | None:
     """Extract a department slug from a feuxdeforet.fr URL."""
-    if not isinstance(url, str) or not url:
-        return None
-    path = url.split("feuxdeforet.fr", 1)[-1]
-    parts = [part for part in path.split("/") if part]
+    parts = url_parts(url)
     if not parts:
         return None
     return parts[0]
+
+
+def municipality_from_url(url: object) -> str | None:
+    """Extract a readable municipality name from a fire URL."""
+    parts = url_parts(url)
+    if len(parts) < 2:
+        return None
+    municipality_slug = _FIRE_SLUG_SUFFIX.sub("", parts[1])
+    return title_from_slug(municipality_slug)
+
+
+def department_code_from_slug(slug: str | None) -> str | None:
+    """Extract the department code from a department slug."""
+    if not slug:
+        return None
+    match = _DEPARTMENT_CODE_SUFFIX.search(slug)
+    return match.group(1).upper() if match else None
+
+
+def url_parts(url: object) -> list[str]:
+    """Return normalized path parts from an absolute or relative URL."""
+    if not isinstance(url, str) or not url:
+        return []
+    path = url.split("feuxdeforet.fr", 1)[-1]
+    return [part for part in path.split("/") if part]
+
+
+def title_from_slug(slug: str | None) -> str | None:
+    """Convert a slug to a readable French-ish title."""
+    if not slug:
+        return None
+    return " ".join(part.capitalize() for part in slug.split("-") if part)
+
+
+def fire_display_name(
+    *,
+    fire_id: str,
+    municipality: str | None,
+    department_code: str | None,
+    fallback: str | None,
+) -> str:
+    """Build the HA friendly fire entity name."""
+    if municipality and department_code:
+        return f"Feu de {municipality} - {department_code}"
+    if municipality:
+        return f"Feu de {municipality}"
+    if fallback:
+        return f"Feu {fire_id} - {title_from_slug(fallback) or fallback}"
+    return f"Feu {fire_id}"
 
 
 def is_active_fire(fire: FireFeature) -> bool:

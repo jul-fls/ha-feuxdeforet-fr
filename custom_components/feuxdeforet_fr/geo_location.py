@@ -10,7 +10,13 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_CREATE_FIRE_GEOLOCATIONS, DOMAIN, MANUFACTURER
+from .const import (
+    CONF_CREATE_FIRE_GEOLOCATIONS,
+    DEVICE_ID,
+    DEVICE_NAME,
+    DOMAIN,
+    MANUFACTURER,
+)
 from .coordinator import FeuxDeForetCoordinator
 from .models import FireFeature
 
@@ -46,7 +52,7 @@ class FeuxDeForetFireLocation(
 ):
     """Geo-location entity for one fire point."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
     _attr_source = DOMAIN
     _attr_icon = "mdi:fire-alert"
 
@@ -66,6 +72,14 @@ class FeuxDeForetFireLocation(
         """Return the fire name."""
         fire = self._fire
         return fire.name if fire is not None else f"Feu {self.fire_id}"
+
+    @property
+    def state(self) -> str | None:
+        """Return a useful state instead of unknown."""
+        fire = self._fire
+        if fire is None:
+            return None
+        return fire.state or fire.status or "cartographie"
 
     @property
     def latitude(self) -> float | None:
@@ -93,9 +107,9 @@ class FeuxDeForetFireLocation(
     def device_info(self) -> dict[str, Any]:
         """Return device info."""
         return {
-            "identifiers": {(DOMAIN, "fires")},
+            "identifiers": {(DOMAIN, DEVICE_ID)},
             "manufacturer": MANUFACTURER,
-            "name": "Feux de Foret",
+            "name": DEVICE_NAME,
         }
 
     @property
@@ -108,9 +122,11 @@ class FeuxDeForetFireLocation(
             "fire_id": fire.id,
             "status": fire.status,
             "state": fire.state,
-            "url": fire.url,
+            "municipality": fire.municipality,
+            "department_code": fire.department_code,
             "department_slug": fire.department_slug,
             "region_slug": fire.region_slug,
+            "url": fire.url,
             "properties": fire.properties,
         }
 

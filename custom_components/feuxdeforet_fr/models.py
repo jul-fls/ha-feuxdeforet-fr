@@ -18,13 +18,15 @@ class FireFeature:
     url: str | None
     department_slug: str | None
     region_slug: str | None
+    municipality: str | None
+    department_code: str | None
+    display_name: str
     properties: dict[str, Any]
 
     @property
     def name(self) -> str:
         """Return a stable friendly name."""
-        suffix = self.department_slug or self.region_slug or "france"
-        return f"Feu {self.id} {suffix}"
+        return self.display_name
 
 
 @dataclass(frozen=True, slots=True)
