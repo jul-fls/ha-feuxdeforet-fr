@@ -2,6 +2,8 @@ type: vertical-stack
 cards:
   - type: markdown
     content: |
+      [![Feux de Foret](https://feuxdeforet.fr/assets/images/logo_noir.png)](https://feuxdeforet.fr/)
+
       ## Feux de Foret
       {% set nearby = states('binary_sensor.feux_de_foret_nearby_fire') %}
       {% set distance = states('sensor.feux_de_foret_nearest_fire_distance') %}
@@ -31,6 +33,11 @@ cards:
     content: |
       {% set entity = 'sensor.feux_de_foret_latest_fire_report' %}
       {% set url = state_attr(entity, 'url') %}
+      {% set thumbnail = state_attr(entity, 'thumbnail') %}
+      {% if thumbnail %}
+      {% if url %}[![Dernier feu signalé]({{ thumbnail }})]({{ url }}){% else %}![Dernier feu signalé]({{ thumbnail }}){% endif %}
+
+      {% endif %}
       **{{ states(entity) }}**
 
       {{ state_attr(entity, 'time_ago') or '' }}
@@ -42,6 +49,11 @@ cards:
     content: |
       {% set entity = 'sensor.feux_de_foret_latest_news' %}
       {% set url = state_attr(entity, 'url') %}
+      {% set thumbnail = state_attr(entity, 'thumbnail') %}
+      {% if thumbnail %}
+      {% if url %}[![Illustration de la dernière actualité]({{ thumbnail }})]({{ url }}){% else %}![Illustration de la dernière actualité]({{ thumbnail }}){% endif %}
+
+      {% endif %}
       **{{ states(entity) }}**
 
       {{ state_attr(entity, 'excerpt') or '' }}
