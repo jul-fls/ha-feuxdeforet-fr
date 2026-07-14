@@ -7,15 +7,13 @@ from typing import Any
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_CREATE_FIRE_GEOLOCATIONS,
-    DEVICE_ID,
-    DEVICE_NAME,
     DOMAIN,
-    MANUFACTURER,
 )
 from .coordinator import FeuxDeForetCoordinator
 from .models import FireFeature
@@ -32,6 +30,18 @@ async def async_setup_entry(
 
     coordinator = entry.runtime_data.coordinator
     known_ids: set[str] = set()
+
+    entity_registry = er.async_get(hass)
+    for registry_entry in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        if (
+            registry_entry.entity_id.startswith("geo_location.")
+            and registry_entry.device_id is not None
+        ):
+            entity_registry.async_update_entity(
+                registry_entry.entity_id, device_id=None
+            )
 
     @callback
     def async_add_new_fires() -> None:
@@ -79,6 +89,8 @@ class FeuxDeForetFireLocation(
         fire = self._fire
         if fire is None:
             return None
+        if fire.status == "eteint":
+            return fire.status
         return fire.state or fire.status or "cartographie"
 
     @property
@@ -104,15 +116,6 @@ class FeuxDeForetFireLocation(
         return self.fire_id
 
     @property
-    def device_info(self) -> dict[str, Any]:
-        """Return device info."""
-        return {
-            "identifiers": {(DOMAIN, DEVICE_ID)},
-            "manufacturer": MANUFACTURER,
-            "name": DEVICE_NAME,
-        }
-
-    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return fire attributes."""
         fire = self._fire
@@ -121,8 +124,10 @@ class FeuxDeForetFireLocation(
         return {
             "fire_id": fire.id,
             "status": fire.status,
+            "raw_status": fire.properties.get("statut"),
             "state": fire.state,
             "municipality": fire.municipality,
+            "department_name": fire.department_name,
             "department_code": fire.department_code,
             "department_slug": fire.department_slug,
             "region_slug": fire.region_slug,

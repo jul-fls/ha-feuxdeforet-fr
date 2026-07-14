@@ -80,7 +80,7 @@ For each known region and department, a sensor exposes:
   - `by_status`;
   - source URL.
 
-Empty department sensors are marked as diagnostic so they do not overwhelm primary dashboards.
+Region and department entities are regular sensors, including when their value is zero.
 
 ### Dynamic fire locations
 
@@ -90,6 +90,7 @@ Every mapped fire becomes a `geo_location` entity with:
 - longitude;
 - fire ID;
 - status;
+- raw API status (`raw_status`);
 - state;
 - source URL;
 - department slug;
@@ -97,6 +98,8 @@ Every mapped fire becomes a `geo_location` entity with:
 - raw `properties` from the GeoJSON payload.
 
 These entities can be displayed on a map and used in automations.
+They are not attached to the aggregate device, so Home Assistant does not mix them with
+the device's sensor list.
 
 ## Dashboard examples
 
@@ -205,9 +208,7 @@ The integration options let you tune:
 - polling interval;
 - region sensors on/off;
 - department sensors on/off;
-- dynamic fire geo-location entities on/off;
-- GeoJSON `last_update` parameter;
-- GeoJSON `x-fdf-nonce` header value.
+- dynamic fire geo-location entities on/off.
 
 ## Development
 

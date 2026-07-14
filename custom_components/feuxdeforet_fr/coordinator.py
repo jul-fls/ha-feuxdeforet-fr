@@ -21,6 +21,7 @@ from .const import (
 )
 from .helpers import (
     build_department_counts,
+    build_department_names,
     build_department_to_region,
     build_region_counts,
     features_from_geojson,
@@ -80,7 +81,10 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
             raise UpdateFailed("Missing regions payload from feuxdeforet.fr")
 
         department_to_region = build_department_to_region(regions)
-        fires = features_from_geojson(geojson, department_to_region)
+        department_names = build_department_names(regions)
+        fires = features_from_geojson(
+            geojson, department_to_region, department_names
+        )
         return FeuxDeForetData(
             stats=stats,
             regions=regions,

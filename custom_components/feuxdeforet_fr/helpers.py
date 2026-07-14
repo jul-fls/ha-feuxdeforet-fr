@@ -9,8 +9,8 @@ from typing import Any
 
 from .models import FireFeature, ZoneCount
 
-ACTIVE_STATES = {"attaque", "en_cours", "actif", "non_maitrise"}
 PUBLISHED_STATUS = "valide_publie"
+STATUS_LABELS = {"cloture": "eteint"}
 _FIRE_SLUG_SUFFIX = re.compile(r"-\d{2}-\d{2}-\d{4}-\d+$")
 _DEPARTMENT_CODE_SUFFIX = re.compile(r"-(\d{2,3}|2a|2b)$", re.IGNORECASE)
 
@@ -30,6 +30,7 @@ def extract_geojson_payload(payload: dict[str, Any] | None) -> dict[str, Any] | 
 def features_from_geojson(
     payload: dict[str, Any] | None,
     department_to_region: dict[str, str],
+    department_names: dict[str, str] | None = None,
 ) -> dict[str, FireFeature]:
     """Convert a GeoJSON payload to keyed fire features."""
     geojson = extract_geojson_payload(payload)
@@ -39,7 +40,11 @@ def features_from_geojson(
     parsed_fires = [
         parsed
         for feature in geojson.get("features", [])
-        if (parsed := feature_from_geojson_feature(feature, department_to_region))
+        if (
+            parsed := feature_from_geojson_feature(
+                feature, department_to_region, department_names or {}
+            )
+        )
         is not None
     ]
     label_counts = Counter(fire.display_name for fire in parsed_fires)
@@ -56,6 +61,7 @@ def features_from_geojson(
 def feature_from_geojson_feature(
     feature: dict[str, Any],
     department_to_region: dict[str, str],
+    department_names: dict[str, str],
 ) -> FireFeature | None:
     """Parse a single GeoJSON feature."""
     geometry = feature.get("geometry") or {}
@@ -68,25 +74,30 @@ def feature_from_geojson_feature(
     longitude = float(coordinates[0])
     latitude = float(coordinates[1])
     url = properties.get("url")
-    department_slug = department_slug_from_url(url)
+    url_department_slug = department_slug_from_url(url)
+    department_slug = canonical_department_slug(url_department_slug)
+    department_key = department_match_key(department_slug)
+    department_name = department_names.get(department_key)
     municipality = municipality_from_url(url)
-    department_code = department_code_from_slug(department_slug)
+    department_code = department_code_from_slug(url_department_slug)
     display_name = fire_display_name(
         fire_id=str(fire_id),
         municipality=municipality,
+        department_name=department_name,
         department_code=department_code,
-        fallback=department_slug or department_to_region.get(department_slug or ""),
+        fallback=department_slug or department_to_region.get(department_key),
     )
     return FireFeature(
         id=str(fire_id),
         latitude=latitude,
         longitude=longitude,
-        status=str(properties.get("statut")) if properties.get("statut") else None,
+        status=normalize_status(properties.get("statut")),
         state=str(properties.get("etat")) if properties.get("etat") else None,
         url=str(url) if url else None,
         department_slug=department_slug,
-        region_slug=department_to_region.get(department_slug or ""),
+        region_slug=department_to_region.get(department_key),
         municipality=municipality,
+        department_name=department_name,
         department_code=department_code,
         display_name=display_name,
         properties=dict(properties),
@@ -118,6 +129,27 @@ def department_code_from_slug(slug: str | None) -> str | None:
     return match.group(1).upper() if match else None
 
 
+def canonical_department_slug(slug: str | None) -> str | None:
+    """Remove the department code appended to fire URL slugs."""
+    if not slug:
+        return None
+    return _DEPARTMENT_CODE_SUFFIX.sub("", slug)
+
+
+def department_match_key(slug: str | None) -> str:
+    """Return a key tolerant of API and fire URL slug punctuation differences."""
+    canonical_slug = canonical_department_slug(slug) or ""
+    return re.sub(r"[^a-z0-9]", "", canonical_slug.lower())
+
+
+def normalize_status(status: object) -> str | None:
+    """Return a user-facing status while preserving unknown API values."""
+    if status is None or status == "":
+        return None
+    raw_status = str(status)
+    return STATUS_LABELS.get(raw_status, raw_status)
+
+
 def url_parts(url: object) -> list[str]:
     """Return normalized path parts from an absolute or relative URL."""
     if not isinstance(url, str) or not url:
@@ -137,10 +169,15 @@ def fire_display_name(
     *,
     fire_id: str,
     municipality: str | None,
+    department_name: str | None,
     department_code: str | None,
     fallback: str | None,
 ) -> str:
     """Build the HA friendly fire entity name."""
+    if municipality and department_name and department_code:
+        return f"Feu de {municipality} - {department_name} ({department_code})"
+    if municipality and department_name:
+        return f"Feu de {municipality} - {department_name}"
     if municipality and department_code:
         return f"Feu de {municipality} - {department_code}"
     if municipality:
@@ -152,9 +189,7 @@ def fire_display_name(
 
 def is_active_fire(fire: FireFeature) -> bool:
     """Return whether a fire should count as active/current."""
-    return fire.status == PUBLISHED_STATUS and (
-        fire.state in ACTIVE_STATES or fire.state is None
-    )
+    return fire.status == PUBLISHED_STATUS
 
 
 def build_department_to_region(regions: tuple[Any, ...]) -> dict[str, str]:
@@ -162,8 +197,17 @@ def build_department_to_region(regions: tuple[Any, ...]) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for region in regions:
         for department in region.departments:
-            mapping[department.slug] = region.slug
+            mapping[department_match_key(department.slug)] = region.slug
     return mapping
+
+
+def build_department_names(regions: tuple[Any, ...]) -> dict[str, str]:
+    """Build a normalized department slug to official name lookup."""
+    return {
+        department_match_key(department.slug): department.name
+        for region in regions
+        for department in region.departments
+    }
 
 
 def build_region_counts(
@@ -191,10 +235,11 @@ def build_department_counts(
     counts: dict[str, ZoneCount] = {}
     for region in regions:
         for department in region.departments:
+            department_key = department_match_key(department.slug)
             department_fires = [
                 fire
                 for fire in fires.values()
-                if fire.department_slug == department.slug
+                if department_match_key(fire.department_slug) == department_key
             ]
             counts[department.slug] = zone_count_from_fires(
                 key=department.slug,

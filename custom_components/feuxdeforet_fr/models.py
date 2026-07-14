@@ -19,6 +19,7 @@ class FireFeature:
     department_slug: str | None
     region_slug: str | None
     municipality: str | None
+    department_name: str | None
     department_code: str | None
     display_name: str
     properties: dict[str, Any]

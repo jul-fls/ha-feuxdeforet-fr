@@ -17,13 +17,17 @@ sys.modules.setdefault("custom_components.feuxdeforet_fr", package)
 helpers = importlib.import_module("custom_components.feuxdeforet_fr.helpers")
 
 build_department_counts = helpers.build_department_counts
+build_department_names = helpers.build_department_names
 build_department_to_region = helpers.build_department_to_region
 build_region_counts = helpers.build_region_counts
+canonical_department_slug = helpers.canonical_department_slug
 department_code_from_slug = helpers.department_code_from_slug
+department_match_key = helpers.department_match_key
 department_slug_from_url = helpers.department_slug_from_url
 features_from_geojson = helpers.features_from_geojson
 is_active_fire = helpers.is_active_fire
 municipality_from_url = helpers.municipality_from_url
+normalize_status = helpers.normalize_status
 
 
 def test_department_slug_from_url() -> None:
@@ -43,6 +47,10 @@ def test_fire_location_labels_from_url() -> None:
 
     assert municipality_from_url(url) == "Saint Haon"
     assert department_code_from_slug("haute-loire-43") == "43"
+    assert canonical_department_slug("haute-loire-43") == "haute-loire"
+    assert department_match_key("cotes-d-armor-22") == department_match_key(
+        "cotes-darmor"
+    )
 
 
 def test_features_from_wrapped_geojson() -> None:
@@ -68,17 +76,22 @@ def test_features_from_wrapped_geojson() -> None:
         }
     }
 
-    fires = features_from_geojson(payload, {"haute-loire-43": "auvergne-rhone-alpes"})
+    fires = features_from_geojson(
+        payload,
+        {"hauteloire": "auvergne-rhone-alpes"},
+        {"hauteloire": "Haute-Loire"},
+    )
 
     assert list(fires) == ["1533"]
     fire = fires["1533"]
     assert fire.latitude == 44.846703
     assert fire.longitude == 3.757945
-    assert fire.department_slug == "haute-loire-43"
+    assert fire.department_slug == "haute-loire"
     assert fire.region_slug == "auvergne-rhone-alpes"
     assert fire.municipality == "Saint Haon"
+    assert fire.department_name == "Haute-Loire"
     assert fire.department_code == "43"
-    assert fire.name == "Feu de Saint Haon - 43"
+    assert fire.name == "Feu de Saint Haon - Haute-Loire (43)"
     assert is_active_fire(fire)
 
 
@@ -106,16 +119,27 @@ def test_duplicate_fire_labels_get_fire_id_suffix() -> None:
         ],
     }
 
-    fires = features_from_geojson(payload, {"var-83": "provence-alpes-cote-d-azur"})
+    fires = features_from_geojson(
+        payload,
+        {"var": "provence-alpes-cote-d-azur"},
+        {"var": "Var"},
+    )
 
-    assert fires["1"].name == "Feu de Toulon - 83 #1"
-    assert fires["2"].name == "Feu de Toulon - 83 #2"
+    assert fires["1"].name == "Feu de Toulon - Var (83) #1"
+    assert fires["2"].name == "Feu de Toulon - Var (83) #2"
+
+
+def test_closed_status_is_exposed_as_extinguished() -> None:
+    """Closed API fires use an unambiguous user-facing status."""
+    assert normalize_status("cloture") == "eteint"
+    assert normalize_status("valide_publie") == "valide_publie"
+    assert normalize_status(None) is None
 
 
 def test_zone_counts() -> None:
     """Region and department counts include active and status breakdowns."""
     department = SimpleNamespace(
-        slug="haute-loire-43",
+        slug="haute-loire",
         name="Haute-Loire",
         url="/auvergne-rhone-alpes/haute-loire/",
     )
@@ -155,7 +179,31 @@ def test_zone_counts() -> None:
 
     assert region_counts["auvergne-rhone-alpes"].count == 2
     assert region_counts["auvergne-rhone-alpes"].active_count == 1
-    assert department_counts["haute-loire-43"].by_status == {
+    assert department_counts["haute-loire"].active_count == 1
+    assert department_counts["haute-loire"].by_status == {
         "valide_publie": 1,
         "douteux": 1,
     }
+
+
+def test_fixed_and_controlled_published_fires_are_current() -> None:
+    """All published fires count as current regardless of operational state."""
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "geometry": {"coordinates": [3.0, 44.0]},
+                "properties": {
+                    "id": state,
+                    "statut": "valide_publie",
+                    "etat": state,
+                    "url": f"https://feuxdeforet.fr/landes-40/{state}/",
+                },
+            }
+            for state in ("attaque", "fixe", "maitrise")
+        ],
+    }
+    fires = features_from_geojson(payload, {"landes": "nouvelle-aquitaine"})
+
+    assert all(fire.region_slug == "nouvelle-aquitaine" for fire in fires.values())
+    assert all(is_active_fire(fire) for fire in fires.values())

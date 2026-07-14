@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -54,7 +55,7 @@ NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
     FeuxDeForetSensorDescription(
         key="fires_24h",
         display_name="Feux sur 24h",
-        icon="mdi:fire-clock",
+        icon="mdi:clock-outline",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_24h"),
     ),
@@ -75,7 +76,7 @@ NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
     FeuxDeForetSensorDescription(
         key="fires_year",
         display_name="Feux cette année",
-        icon="mdi:calendar-fire",
+        icon="mdi:calendar",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_year"),
     ),
@@ -135,6 +136,19 @@ async def async_setup_entry(
 ) -> None:
     """Set up Feux de Foret sensors from a config entry."""
     coordinator = entry.runtime_data.coordinator
+
+    entity_registry = er.async_get(hass)
+    for registry_entry in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        if (
+            registry_entry.unique_id.startswith(f"{DOMAIN}_department_")
+            and registry_entry.entity_category is EntityCategory.DIAGNOSTIC
+        ):
+            entity_registry.async_update_entity(
+                registry_entry.entity_id, entity_category=None
+            )
+
     entities: list[SensorEntity] = [
         FeuxDeForetNationalSensor(coordinator, description)
         for description in NATIONAL_SENSORS
@@ -236,13 +250,6 @@ class FeuxDeForetZoneSensor(FeuxDeForetBaseSensor):
             "active_fires": zone.active_count,
             "by_status": zone.by_status,
         }
-
-    @property
-    def entity_category(self) -> EntityCategory | None:
-        """Hide empty department sensors from primary dashboards by default."""
-        if self.zone_type == "department" and self.native_value == 0:
-            return EntityCategory.DIAGNOSTIC
-        return None
 
     @property
     def _zone(self) -> ZoneCount:
