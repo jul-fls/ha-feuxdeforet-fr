@@ -48,7 +48,7 @@ NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
     FeuxDeForetSensorDescription(
         key="current_fires",
         display_name="Feux en cours",
-        icon="mdi:fire-alert",
+        icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published"),
     ),

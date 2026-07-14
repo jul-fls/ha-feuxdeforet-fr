@@ -64,7 +64,7 @@ class FeuxDeForetFireLocation(
 
     _attr_has_entity_name = False
     _attr_source = DOMAIN
-    _attr_icon = "mdi:fire-alert"
+    _attr_icon = "mdi:fire"
 
     def __init__(self, coordinator: FeuxDeForetCoordinator, fire_id: str) -> None:
         """Initialize the fire location."""
