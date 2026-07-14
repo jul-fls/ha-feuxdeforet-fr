@@ -25,6 +25,8 @@ department_code_from_slug = helpers.department_code_from_slug
 department_match_key = helpers.department_match_key
 department_slug_from_url = helpers.department_slug_from_url
 features_from_geojson = helpers.features_from_geojson
+fire_proximity = helpers.fire_proximity
+home_fires_from_data = helpers.home_fires_from_data
 is_active_fire = helpers.is_active_fire
 municipality_from_url = helpers.municipality_from_url
 normalize_status = helpers.normalize_status
@@ -207,3 +209,74 @@ def test_fixed_and_controlled_published_fires_are_current() -> None:
 
     assert all(fire.region_slug == "nouvelle-aquitaine" for fire in fires.values())
     assert all(is_active_fire(fire) for fire in fires.values())
+
+
+def test_home_fires_are_parsed_from_raw_home_payload() -> None:
+    """Homepage recent fires are normalized from the library's retained payload."""
+    home = SimpleNamespace(
+        raw={
+            "feux": [
+                {
+                    "id": 3057,
+                    "title": "Incendie à Rodelle (12)",
+                    "commune": "Rodelle",
+                    "dept": "12",
+                    "url": "/aveyron-12/rodelle/",
+                    "dateIso": "2026-07-14T21:32:35Z",
+                    "timeAgo": "il y a 18 minutes",
+                    "enCours": True,
+                    "thumbnail": "/medias/rodelle.webp",
+                }
+            ]
+        }
+    )
+
+    fires = home_fires_from_data(home)
+
+    assert len(fires) == 1
+    assert fires[0].municipality == "Rodelle"
+    assert fires[0].in_progress
+    assert fires[0].url == "https://feuxdeforet.fr/aveyron-12/rodelle/"
+    assert fires[0].thumbnail == "https://feuxdeforet.fr/medias/rodelle.webp"
+
+
+def test_fire_proximity_uses_only_active_fires() -> None:
+    """Nearest and nearby calculations ignore non-published map entries."""
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "geometry": {"coordinates": [2.36, 48.86]},
+                "properties": {
+                    "id": "near",
+                    "statut": "valide_publie",
+                    "url": "https://feuxdeforet.fr/paris-75/paris/",
+                },
+            },
+            {
+                "geometry": {"coordinates": [4.84, 45.76]},
+                "properties": {
+                    "id": "far",
+                    "statut": "valide_publie",
+                    "url": "https://feuxdeforet.fr/rhone-69/lyon/",
+                },
+            },
+            {
+                "geometry": {"coordinates": [2.35, 48.85]},
+                "properties": {
+                    "id": "closed",
+                    "statut": "cloture",
+                    "url": "https://feuxdeforet.fr/paris-75/paris/",
+                },
+            },
+        ],
+    }
+    fires = features_from_geojson(payload, {})
+
+    nearest_id, nearest_distance, nearby_ids = fire_proximity(
+        fires, 48.8566, 2.3522, 10
+    )
+
+    assert nearest_id == "near"
+    assert nearest_distance is not None and nearest_distance < 1
+    assert nearby_ids == ("near",)

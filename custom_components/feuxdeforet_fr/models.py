@@ -43,13 +43,33 @@ class ZoneCount:
 
 
 @dataclass(frozen=True, slots=True)
+class HomeFire:
+    """Recent fire summary exposed by the homepage endpoint."""
+
+    id: str
+    title: str
+    municipality: str | None
+    department_code: str | None
+    url: str | None
+    date_iso: str | None
+    time_ago: str | None
+    in_progress: bool
+    thumbnail: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class FeuxDeForetData:
     """All data fetched by one coordinator refresh."""
 
     stats: Any | None
     regions: tuple[Any, ...]
     home: Any | None
+    home_fires: tuple[HomeFire, ...]
     geojson: dict[str, Any] | None
     fires: dict[str, FireFeature]
     region_counts: dict[str, ZoneCount]
     department_counts: dict[str, ZoneCount]
+    nearest_fire_id: str | None
+    nearest_fire_distance_km: float | None
+    nearby_fire_ids: tuple[str, ...]
+    unmatched_fire_ids: tuple[str, ...]

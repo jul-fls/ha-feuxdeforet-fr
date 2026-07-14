@@ -14,6 +14,7 @@ from .const import (
     CONF_CREATE_FIRE_GEOLOCATIONS,
     CONF_CREATE_REGION_SENSORS,
     CONF_POLL_INTERVAL,
+    CONF_PROXIMITY_RADIUS_KM,
     DEFAULT_OPTIONS,
     DOMAIN,
     MIN_POLL_INTERVAL,
@@ -101,6 +102,13 @@ def _options_schema(
                 CONF_CREATE_FIRE_GEOLOCATIONS,
                 default=defaults.get(CONF_CREATE_FIRE_GEOLOCATIONS, True),
             ): bool,
+            vol.Required(
+                CONF_PROXIMITY_RADIUS_KM,
+                default=defaults.get(
+                    CONF_PROXIMITY_RADIUS_KM,
+                    DEFAULT_OPTIONS[CONF_PROXIMITY_RADIUS_KM],
+                ),
+            ): vol.All(vol.Coerce(float), vol.Range(min=1, max=500)),
         }
     )
     return vol.Schema(fields)

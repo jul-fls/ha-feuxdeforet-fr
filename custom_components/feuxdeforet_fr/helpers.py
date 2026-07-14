@@ -5,14 +5,16 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import replace
+from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
-from .models import FireFeature, ZoneCount
+from .models import FireFeature, HomeFire, ZoneCount
 
 PUBLISHED_STATUS = "valide_publie"
 STATUS_LABELS = {"cloture": "eteint"}
 _FIRE_SLUG_SUFFIX = re.compile(r"-\d{2}-\d{2}-\d{4}-\d+$")
 _DEPARTMENT_CODE_SUFFIX = re.compile(r"-(\d{2,3}|2a|2b)$", re.IGNORECASE)
+BASE_URL = "https://feuxdeforet.fr"
 
 
 def extract_geojson_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -148,6 +150,94 @@ def normalize_status(status: object) -> str | None:
         return None
     raw_status = str(status)
     return STATUS_LABELS.get(raw_status, raw_status)
+
+
+def absolute_url(url: object) -> str | None:
+    """Return an absolute feuxdeforet.fr URL."""
+    if not isinstance(url, str) or not url:
+        return None
+    if url.startswith(("https://", "http://")):
+        return url
+    return f"{BASE_URL}/{url.lstrip('/')}"
+
+
+def home_fires_from_data(home: Any | None) -> tuple[HomeFire, ...]:
+    """Parse recent fires retained in HomeData.raw by the client library."""
+    raw = getattr(home, "raw", None)
+    if not isinstance(raw, dict):
+        return ()
+
+    fires: list[HomeFire] = []
+    raw_fires = raw.get("feux", [])
+    if not isinstance(raw_fires, list):
+        return ()
+    for payload in raw_fires:
+        if not isinstance(payload, dict) or payload.get("id") is None:
+            continue
+        fires.append(
+            HomeFire(
+                id=str(payload["id"]),
+                title=str(payload.get("title") or ""),
+                municipality=(
+                    str(payload["commune"]) if payload.get("commune") else None
+                ),
+                department_code=(
+                    str(payload["dept"]) if payload.get("dept") else None
+                ),
+                url=absolute_url(payload.get("url")),
+                date_iso=(
+                    str(payload["dateIso"]) if payload.get("dateIso") else None
+                ),
+                time_ago=(
+                    str(payload["timeAgo"]) if payload.get("timeAgo") else None
+                ),
+                in_progress=bool(payload.get("enCours")),
+                thumbnail=absolute_url(payload.get("thumbnail")),
+            )
+        )
+    return tuple(fires)
+
+
+def distance_km(
+    latitude: float,
+    longitude: float,
+    target_latitude: float,
+    target_longitude: float,
+) -> float:
+    """Return great-circle distance between two WGS84 points in kilometers."""
+    earth_radius_km = 6371.0088
+    lat1 = radians(latitude)
+    lat2 = radians(target_latitude)
+    delta_lat = lat2 - lat1
+    delta_lon = radians(target_longitude - longitude)
+    haversine = (
+        sin(delta_lat / 2) ** 2
+        + cos(lat1) * cos(lat2) * sin(delta_lon / 2) ** 2
+    )
+    return 2 * earth_radius_km * asin(sqrt(haversine))
+
+
+def fire_proximity(
+    fires: dict[str, FireFeature],
+    latitude: float,
+    longitude: float,
+    radius_km: float,
+) -> tuple[str | None, float | None, tuple[str, ...]]:
+    """Return nearest active fire and active fire IDs within a radius."""
+    distances = {
+        fire.id: distance_km(latitude, longitude, fire.latitude, fire.longitude)
+        for fire in fires.values()
+        if is_active_fire(fire)
+    }
+    if not distances:
+        return None, None, ()
+    nearest_id = min(distances, key=distances.__getitem__)
+    nearby_ids = tuple(
+        fire_id
+        for fire_id, distance in sorted(distances.items(), key=lambda item: item[1])
+        if distance <= radius_km
+    )
+    return nearest_id, distances[nearest_id], nearby_ids
 
 
 def url_parts(url: object) -> list[str]:

@@ -1,0 +1,14 @@
+alias: Alerte feu dans le rayon configuré
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.feux_de_foret_nearby_fire
+    from: "off"
+    to: "on"
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      title: Feu à proximité
+      message: >-
+        {{ state_attr('binary_sensor.feux_de_foret_nearby_fire', 'fire_count') }}
+        feu(x) actif(s) détecté(s) dans un rayon de
+        {{ state_attr('binary_sensor.feux_de_foret_nearby_fire', 'radius_km') }} km.

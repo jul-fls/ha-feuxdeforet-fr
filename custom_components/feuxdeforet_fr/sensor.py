@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
+    SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, UnitOfLength
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -27,7 +28,8 @@ from .const import (
     MANUFACTURER,
 )
 from .coordinator import FeuxDeForetCoordinator
-from .models import ZoneCount
+from .helpers import absolute_url
+from .models import FireFeature, HomeFire, ZoneCount
 
 
 def _empty_attrs(coordinator: FeuxDeForetCoordinator) -> dict[str, Any]:
@@ -39,7 +41,6 @@ def _empty_attrs(coordinator: FeuxDeForetCoordinator) -> dict[str, Any]:
 class FeuxDeForetSensorDescription(SensorEntityDescription):
     """Describe a Feux de Foret sensor."""
 
-    display_name: str
     value_fn: Callable[[FeuxDeForetCoordinator], Any]
     attrs_fn: Callable[[FeuxDeForetCoordinator], dict[str, Any]] = _empty_attrs
 
@@ -47,77 +48,77 @@ class FeuxDeForetSensorDescription(SensorEntityDescription):
 NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
     FeuxDeForetSensorDescription(
         key="current_fires",
-        display_name="Feux en cours",
+        translation_key="current_fires",
         icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_24h",
-        display_name="Feux sur 24h",
+        translation_key="fires_24h",
         icon="mdi:clock-outline",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_24h"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_7d",
-        display_name="Feux sur 7 jours",
+        translation_key="fires_7d",
         icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_7d"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_30d",
-        display_name="Feux sur 30 jours",
+        translation_key="fires_30d",
         icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_30d"),
     ),
     FeuxDeForetSensorDescription(
         key="fires_year",
-        display_name="Feux cette année",
+        translation_key="fires_year",
         icon="mdi:calendar",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "valid_published_year"),
     ),
     FeuxDeForetSensorDescription(
         key="weak_risk_zones",
-        display_name="Zones risque faible",
+        translation_key="weak_risk_zones",
         icon="mdi:map-marker-radius-outline",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "weak_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="moderate_risk_zones",
-        display_name="Zones risque modéré",
+        translation_key="moderate_risk_zones",
         icon="mdi:map-marker-radius",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "moderate_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="high_risk_zones",
-        display_name="Zones risque élevé",
+        translation_key="high_risk_zones",
         icon="mdi:map-marker-alert-outline",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "high_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="very_high_risk_zones",
-        display_name="Zones risque très élevé",
+        translation_key="very_high_risk_zones",
         icon="mdi:map-marker-alert",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "very_high_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="extreme_risk_zones",
-        display_name="Zones risque extrême",
+        translation_key="extreme_risk_zones",
         icon="mdi:map-marker-alert",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: _stats_value(coordinator, "extreme_risk_zones"),
     ),
     FeuxDeForetSensorDescription(
         key="mapped_fires",
-        display_name="Feux cartographiés",
+        translation_key="mapped_fires",
         icon="mdi:map-marker-multiple",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda coordinator: len(coordinator.data.fires),
@@ -125,6 +126,52 @@ NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
             "fire_ids": sorted(coordinator.data.fires),
             "geojson_available": coordinator.data.geojson is not None,
         },
+    ),
+    FeuxDeForetSensorDescription(
+        key="recent_fires",
+        translation_key="recent_fires",
+        icon="mdi:fire",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda coordinator: len(coordinator.data.home_fires),
+        attrs_fn=lambda coordinator: {
+            "fires": [
+                _home_fire_attributes(fire)
+                for fire in coordinator.data.home_fires
+            ]
+        },
+    ),
+    FeuxDeForetSensorDescription(
+        key="latest_fire_report",
+        translation_key="latest_fire_report",
+        icon="mdi:fire",
+        value_fn=lambda coordinator: _latest_fire_title(coordinator),
+        attrs_fn=lambda coordinator: (
+            _home_fire_attributes(coordinator.data.home_fires[0])
+            if coordinator.data.home_fires
+            else {}
+        ),
+    ),
+    FeuxDeForetSensorDescription(
+        key="latest_news",
+        translation_key="latest_news",
+        icon="mdi:newspaper",
+        value_fn=lambda coordinator: _latest_article_title(coordinator),
+        attrs_fn=lambda coordinator: _latest_article_attributes(coordinator),
+    ),
+    FeuxDeForetSensorDescription(
+        key="nearest_fire_distance",
+        translation_key="nearest_fire_distance",
+        icon="mdi:map-marker-radius",
+        device_class=SensorDeviceClass.DISTANCE,
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda coordinator: (
+            round(coordinator.data.nearest_fire_distance_km, 2)
+            if coordinator.data.nearest_fire_distance_km is not None
+            else None
+        ),
+        attrs_fn=lambda coordinator: _nearest_fire_attributes(coordinator),
     ),
 )
 
@@ -172,7 +219,7 @@ async def async_setup_entry(
 class FeuxDeForetBaseSensor(CoordinatorEntity[FeuxDeForetCoordinator], SensorEntity):
     """Base Feux de Foret sensor."""
 
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
 
     @property
     def device_info(self) -> dict[str, Any]:
@@ -197,7 +244,6 @@ class FeuxDeForetNationalSensor(FeuxDeForetBaseSensor):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_name = description.display_name
         self._attr_unique_id = f"{DOMAIN}_{description.key}"
 
     @property
@@ -227,7 +273,8 @@ class FeuxDeForetZoneSensor(FeuxDeForetBaseSensor):
         self.zone_type = zone_type
         self.zone_key = zone_key
         self._attr_unique_id = f"{DOMAIN}_{zone_type}_{zone_key}_fires"
-        self._attr_name = self._build_name()
+        self._attr_translation_key = f"{zone_type}_fires"
+        self._attr_translation_placeholders = {"zone": self._zone.name}
         self._attr_icon = (
             "mdi:map" if self.zone_type == "region" else "mdi:map-marker-radius"
         )
@@ -261,13 +308,81 @@ class FeuxDeForetZoneSensor(FeuxDeForetBaseSensor):
         )
         return zones[self.zone_key]
 
-    def _build_name(self) -> str:
-        """Build a readable zone sensor name."""
-        prefix = "Région" if self.zone_type == "region" else "Département"
-        return f"{prefix} {self._zone.name} - feux actifs"
-
-
 def _stats_value(coordinator: FeuxDeForetCoordinator, attr: str) -> int | None:
     """Read a stats attribute safely."""
     stats = coordinator.data.stats
     return getattr(stats, attr, None) if stats is not None else None
+
+
+def _home_fire_attributes(fire: HomeFire) -> dict[str, Any]:
+    """Return recorder-friendly homepage fire attributes."""
+    return {
+        "id": fire.id,
+        "title": fire.title,
+        "municipality": fire.municipality,
+        "department_code": fire.department_code,
+        "date": fire.date_iso,
+        "time_ago": fire.time_ago,
+        "in_progress": fire.in_progress,
+        "url": fire.url,
+        "thumbnail": fire.thumbnail,
+    }
+
+
+def _latest_fire_title(coordinator: FeuxDeForetCoordinator) -> str | None:
+    """Return the latest homepage fire title within HA's state length limit."""
+    if not coordinator.data.home_fires:
+        return None
+    return coordinator.data.home_fires[0].title[:255]
+
+
+def _latest_article_title(coordinator: FeuxDeForetCoordinator) -> str | None:
+    """Return the latest article title within HA's state length limit."""
+    home = coordinator.data.home
+    if home is None or not home.articles:
+        return None
+    return home.articles[0].title[:255]
+
+
+def _latest_article_attributes(
+    coordinator: FeuxDeForetCoordinator,
+) -> dict[str, Any]:
+    """Return useful latest article metadata."""
+    home = coordinator.data.home
+    if home is None or not home.articles:
+        return {}
+    article = home.articles[0]
+    return {
+        "id": article.id,
+        "title": article.title,
+        "excerpt": article.excerpt,
+        "category": article.category.name if article.category else None,
+        "date": article.date_iso,
+        "reading_time_minutes": article.reading_time,
+        "url": absolute_url(article.url),
+        "thumbnail": absolute_url(article.thumbnail_large or article.thumbnail),
+    }
+
+
+def _nearest_fire_attributes(
+    coordinator: FeuxDeForetCoordinator,
+) -> dict[str, Any]:
+    """Return metadata for the nearest active fire."""
+    fire_id = coordinator.data.nearest_fire_id
+    fire: FireFeature | None = (
+        coordinator.data.fires.get(fire_id) if fire_id is not None else None
+    )
+    if fire is None:
+        return {}
+    return {
+        "fire_id": fire.id,
+        "name": fire.name,
+        "status": fire.status,
+        "state": fire.state,
+        "municipality": fire.municipality,
+        "department_name": fire.department_name,
+        "department_code": fire.department_code,
+        "latitude": fire.latitude,
+        "longitude": fire.longitude,
+        "url": fire.url,
+    }

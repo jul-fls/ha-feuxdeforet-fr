@@ -10,7 +10,8 @@
           "poll_interval": "Polling interval in seconds",
           "create_region_sensors": "Create one fire-count sensor per region",
           "create_department_sensors": "Create one fire-count sensor per department",
-          "create_fire_geolocations": "Create one geo-location entity per mapped fire"
+          "create_fire_geolocations": "Create one geo-location entity per mapped fire",
+          "proximity_radius_km": "Nearby fire alert radius (km)"
         }
       }
     },
@@ -26,7 +27,8 @@
           "poll_interval": "Polling interval in seconds",
           "create_region_sensors": "Create one fire-count sensor per region",
           "create_department_sensors": "Create one fire-count sensor per department",
-          "create_fire_geolocations": "Create one geo-location entity per mapped fire"
+          "create_fire_geolocations": "Create one geo-location entity per mapped fire",
+          "proximity_radius_km": "Nearby fire alert radius (km)"
         }
       }
     }
@@ -44,8 +46,21 @@
       "very_high_risk_zones": { "name": "Very high risk zones" },
       "extreme_risk_zones": { "name": "Extreme risk zones" },
       "mapped_fires": { "name": "Mapped fires" },
-      "region_fires": { "name": "{zone} fires" },
-      "department_fires": { "name": "{zone} fires" }
+      "recent_fires": { "name": "Recent homepage fires" },
+      "latest_fire_report": { "name": "Latest fire report" },
+      "latest_news": { "name": "Latest news" },
+      "nearest_fire_distance": { "name": "Nearest active fire distance" },
+      "region_fires": { "name": "Region {zone} active fires" },
+      "department_fires": { "name": "Department {zone} active fires" }
+    },
+    "binary_sensor": {
+      "nearby_fire": { "name": "Fire nearby" }
+    }
+  },
+  "issues": {
+    "unmatched_fires": {
+      "title": "Some fires could not be assigned to a department",
+      "description": "{count} mapped fire(s) could not be matched to the regions API. The feuxdeforet.fr response format may have changed. Check the integration diagnostics."
     }
   }
 }

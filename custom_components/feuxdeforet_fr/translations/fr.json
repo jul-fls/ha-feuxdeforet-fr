@@ -10,7 +10,8 @@
           "poll_interval": "Intervalle de mise à jour en secondes",
           "create_region_sensors": "Créer un capteur par région",
           "create_department_sensors": "Créer un capteur par département",
-          "create_fire_geolocations": "Créer une entité géographique par feu"
+          "create_fire_geolocations": "Créer une entité géographique par feu",
+          "proximity_radius_km": "Rayon d'alerte de proximité (km)"
         }
       }
     },
@@ -26,9 +27,40 @@
           "poll_interval": "Intervalle de mise à jour en secondes",
           "create_region_sensors": "Créer un capteur par région",
           "create_department_sensors": "Créer un capteur par département",
-          "create_fire_geolocations": "Créer une entité géographique par feu"
+          "create_fire_geolocations": "Créer une entité géographique par feu",
+          "proximity_radius_km": "Rayon d'alerte de proximité (km)"
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_fires": { "name": "Feux en cours" },
+      "fires_24h": { "name": "Feux sur 24 h" },
+      "fires_7d": { "name": "Feux sur 7 jours" },
+      "fires_30d": { "name": "Feux sur 30 jours" },
+      "fires_year": { "name": "Feux cette année" },
+      "weak_risk_zones": { "name": "Zones à risque faible" },
+      "moderate_risk_zones": { "name": "Zones à risque modéré" },
+      "high_risk_zones": { "name": "Zones à risque élevé" },
+      "very_high_risk_zones": { "name": "Zones à risque très élevé" },
+      "extreme_risk_zones": { "name": "Zones à risque extrême" },
+      "mapped_fires": { "name": "Feux cartographiés" },
+      "recent_fires": { "name": "Feux récents de l'accueil" },
+      "latest_fire_report": { "name": "Dernier feu signalé" },
+      "latest_news": { "name": "Dernière actualité" },
+      "nearest_fire_distance": { "name": "Distance du feu actif le plus proche" },
+      "region_fires": { "name": "Région {zone} - feux actifs" },
+      "department_fires": { "name": "Département {zone} - feux actifs" }
+    },
+    "binary_sensor": {
+      "nearby_fire": { "name": "Feu à proximité" }
+    }
+  },
+  "issues": {
+    "unmatched_fires": {
+      "title": "Certains feux n'ont pas pu être rattachés à un département",
+      "description": "{count} feu(x) cartographié(s) n'ont pas pu être associés à l'API des régions. Le format de réponse de feuxdeforet.fr a peut-être changé. Consultez les diagnostics de l'intégration."
     }
   }
 }

@@ -1,0 +1,56 @@
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |
+      ## Feux de Foret
+      {% set nearby = states('binary_sensor.feux_de_foret_nearby_fire') %}
+      {% set distance = states('sensor.feux_de_foret_nearest_fire_distance') %}
+      {% if nearby == 'on' %}
+      **Alerte : {{ state_attr('binary_sensor.feux_de_foret_nearby_fire', 'fire_count') }} feu(x) actif(s) dans un rayon de {{ state_attr('binary_sensor.feux_de_foret_nearby_fire', 'radius_km') }} km.**
+      {% elif distance not in ['unknown', 'unavailable'] %}
+      Le feu actif le plus proche se trouve à **{{ distance }} km**.
+      {% else %}
+      Aucun feu actif cartographié actuellement.
+      {% endif %}
+
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: tile
+        entity: sensor.feux_de_foret_current_fires
+      - type: tile
+        entity: sensor.feux_de_foret_fires_24h
+      - type: tile
+        entity: sensor.feux_de_foret_nearest_fire_distance
+      - type: tile
+        entity: binary_sensor.feux_de_foret_nearby_fire
+
+  - type: markdown
+    title: Dernier feu signalé
+    content: |
+      {% set entity = 'sensor.feux_de_foret_latest_fire_report' %}
+      {% set url = state_attr(entity, 'url') %}
+      **{{ states(entity) }}**
+
+      {{ state_attr(entity, 'time_ago') or '' }}
+
+      {% if url %}[Voir le signalement sur feuxdeforet.fr]({{ url }}){% endif %}
+
+  - type: markdown
+    title: Dernière actualité
+    content: |
+      {% set entity = 'sensor.feux_de_foret_latest_news' %}
+      {% set url = state_attr(entity, 'url') %}
+      **{{ states(entity) }}**
+
+      {{ state_attr(entity, 'excerpt') or '' }}
+
+      {% if url %}[Lire l'article sur feuxdeforet.fr]({{ url }}){% endif %}
+
+  - type: map
+    title: Feux cartographiés
+    geo_location_sources:
+      - feuxdeforet_fr
+    hours_to_show: 24
+    default_zoom: 6

@@ -25,6 +25,10 @@ async def async_get_config_entry_diagnostics(
         "stats_available": data.stats is not None,
         "regions": len(data.regions),
         "mapped_fires": len(data.fires),
+        "unmatched_fire_ids": data.unmatched_fire_ids,
+        "nearby_fire_ids": data.nearby_fire_ids,
+        "nearest_fire_id": data.nearest_fire_id,
+        "nearest_fire_distance_km": data.nearest_fire_distance_km,
         "region_counts": {
             key: {
                 "name": value.name,
@@ -34,6 +38,15 @@ async def async_get_config_entry_diagnostics(
             }
             for key, value in data.region_counts.items()
         },
-        "home_articles": len(data.home.articles) if data.home is not None else 0,
+        "home": {
+            "articles": len(data.home.articles) if data.home is not None else 0,
+            "recent_fires": len(data.home_fires),
+            "latest_article_id": (
+                data.home.articles[0].id
+                if data.home is not None and data.home.articles
+                else None
+            ),
+            "latest_fire_id": data.home_fires[0].id if data.home_fires else None,
+        },
         "geojson_available": data.geojson is not None,
     }

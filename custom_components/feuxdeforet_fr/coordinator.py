@@ -4,20 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from pyfeuxdeforet_fr import FeuxDeForetClient
 
 from .const import (
     CONF_POLL_INTERVAL,
+    CONF_PROXIMITY_RADIUS_KM,
     DEFAULT_POLL_INTERVAL,
+    DEFAULT_PROXIMITY_RADIUS_KM,
     DOMAIN,
     GEOJSON_NONCE,
     MIN_POLL_INTERVAL,
+    REGIONS_REFRESH_INTERVAL,
 )
 from .helpers import (
     build_department_counts,
@@ -25,6 +30,8 @@ from .helpers import (
     build_department_to_region,
     build_region_counts,
     features_from_geojson,
+    fire_proximity,
+    home_fires_from_data,
 )
 from .models import FeuxDeForetData
 
@@ -43,6 +50,8 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
         """Initialize the coordinator."""
         self.entry = entry
         self.client = client
+        self._regions: tuple[Any, ...] | None = None
+        self._regions_refreshed_at: datetime | None = None
         poll_interval = int(
             entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
         )
@@ -60,7 +69,7 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
         try:
             async with asyncio.timeout(30):
                 regions, stats, home, geojson = await asyncio.gather(
-                    self.client.get_regions(),
+                    self._async_get_regions(),
                     self.client.get_stats(),
                     self.client.get_home(),
                     self.client.get_geojson(
@@ -85,15 +94,77 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
         fires = features_from_geojson(
             geojson, department_to_region, department_names
         )
+        radius_km = float(
+            self.entry.options.get(
+                CONF_PROXIMITY_RADIUS_KM, DEFAULT_PROXIMITY_RADIUS_KM
+            )
+        )
+        nearest_id, nearest_distance, nearby_ids = fire_proximity(
+            fires,
+            self.hass.config.latitude,
+            self.hass.config.longitude,
+            radius_km,
+        )
+        unmatched_fire_ids = tuple(
+            sorted(
+                fire.id
+                for fire in fires.values()
+                if fire.url is not None and fire.region_slug is None
+            )
+        )
+        if geojson is not None:
+            self._update_unmatched_fire_issue(unmatched_fire_ids)
         return FeuxDeForetData(
             stats=stats,
             regions=regions,
             home=home,
+            home_fires=home_fires_from_data(home),
             geojson=geojson,
             fires=fires,
             region_counts=build_region_counts(regions, fires),
             department_counts=build_department_counts(regions, fires),
+            nearest_fire_id=nearest_id,
+            nearest_fire_distance_km=nearest_distance,
+            nearby_fire_ids=nearby_ids,
+            unmatched_fire_ids=unmatched_fire_ids,
         )
+
+    async def _async_get_regions(self) -> tuple[Any, ...] | None:
+        """Return cached regions, refreshing the mostly-static data daily."""
+        now = dt_util.utcnow()
+        if (
+            self._regions is not None
+            and self._regions_refreshed_at is not None
+            and now - self._regions_refreshed_at < REGIONS_REFRESH_INTERVAL
+        ):
+            return self._regions
+
+        try:
+            regions = await self.client.get_regions()
+        except Exception:
+            if self._regions is None:
+                raise
+            _LOGGER.warning("Unable to refresh regions; keeping the cached metadata")
+            return self._regions
+        if regions is not None:
+            self._regions = regions
+            self._regions_refreshed_at = now
+        return self._regions
+
+    def _update_unmatched_fire_issue(self, fire_ids: tuple[str, ...]) -> None:
+        """Create a repair issue when the upstream zone format is no longer mapped."""
+        if fire_ids:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "unmatched_fires",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="unmatched_fires",
+                translation_placeholders={"count": str(len(fire_ids))},
+            )
+            return
+        ir.async_delete_issue(self.hass, DOMAIN, "unmatched_fires")
 
     @staticmethod
     def _geojson_last_update() -> str:

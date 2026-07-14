@@ -6,16 +6,20 @@ from typing import Any
 
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_CREATE_FIRE_GEOLOCATIONS,
     DOMAIN,
+    FIRE_REMOVAL_GRACE_PERIOD,
 )
 from .coordinator import FeuxDeForetCoordinator
+from .helpers import distance_km
 from .models import FireFeature
 
 
@@ -29,7 +33,8 @@ async def async_setup_entry(
         return
 
     coordinator = entry.runtime_data.coordinator
-    known_ids: set[str] = set()
+    known_entities: dict[str, FeuxDeForetFireLocation] = {}
+    missing_since = {}
 
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(
@@ -42,19 +47,42 @@ async def async_setup_entry(
             entity_registry.async_update_entity(
                 registry_entry.entity_id, device_id=None
             )
+        if (
+            coordinator.data.geojson is not None
+            and registry_entry.unique_id.startswith(f"{DOMAIN}_fire_")
+            and registry_entry.unique_id.removeprefix(f"{DOMAIN}_fire_")
+            not in coordinator.data.fires
+        ):
+            entity_registry.async_remove(registry_entry.entity_id)
 
     @callback
-    def async_add_new_fires() -> None:
+    def async_sync_fires() -> None:
+        if coordinator.data.geojson is None:
+            return
+        now = dt_util.utcnow()
         entities: list[FeuxDeForetFireLocation] = []
         for fire_id in sorted(coordinator.data.fires):
-            if fire_id not in known_ids:
-                known_ids.add(fire_id)
-                entities.append(FeuxDeForetFireLocation(coordinator, fire_id))
+            missing_since.pop(fire_id, None)
+            if fire_id not in known_entities:
+                entity = FeuxDeForetFireLocation(coordinator, fire_id)
+                known_entities[fire_id] = entity
+                entities.append(entity)
         if entities:
             async_add_entities(entities)
 
-    async_add_new_fires()
-    entry.async_on_unload(coordinator.async_add_listener(async_add_new_fires))
+        for fire_id, entity in list(known_entities.items()):
+            if fire_id in coordinator.data.fires:
+                continue
+            first_missing = missing_since.setdefault(fire_id, now)
+            if now - first_missing < FIRE_REMOVAL_GRACE_PERIOD:
+                continue
+            if entity.entity_id:
+                hass.async_create_task(entity.async_remove(force_remove=True))
+            known_entities.pop(fire_id, None)
+            missing_since.pop(fire_id, None)
+
+    async_sync_fires()
+    entry.async_on_unload(coordinator.async_add_listener(async_sync_fires))
 
 
 class FeuxDeForetFireLocation(
@@ -65,6 +93,7 @@ class FeuxDeForetFireLocation(
     _attr_has_entity_name = False
     _attr_source = DOMAIN
     _attr_icon = "mdi:fire"
+    _attr_unit_of_measurement = UnitOfLength.KILOMETERS
 
     def __init__(self, coordinator: FeuxDeForetCoordinator, fire_id: str) -> None:
         """Initialize the fire location."""
@@ -84,16 +113,6 @@ class FeuxDeForetFireLocation(
         return fire.name if fire is not None else f"Feu {self.fire_id}"
 
     @property
-    def state(self) -> str | None:
-        """Return a useful state instead of unknown."""
-        fire = self._fire
-        if fire is None:
-            return None
-        if fire.status == "eteint":
-            return fire.status
-        return fire.state or fire.status or "cartographie"
-
-    @property
     def latitude(self) -> float | None:
         """Return latitude."""
         fire = self._fire
@@ -107,8 +126,19 @@ class FeuxDeForetFireLocation(
 
     @property
     def distance(self) -> float | None:
-        """Distance is computed by Home Assistant/map consumers."""
-        return None
+        """Return distance from the configured Home Assistant location."""
+        fire = self._fire
+        if fire is None:
+            return None
+        return round(
+            distance_km(
+                self.coordinator.hass.config.latitude,
+                self.coordinator.hass.config.longitude,
+                fire.latitude,
+                fire.longitude,
+            ),
+            2,
+        )
 
     @property
     def external_id(self) -> str:
