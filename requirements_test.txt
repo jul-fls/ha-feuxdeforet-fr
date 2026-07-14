@@ -1,0 +1,4 @@
+pytest
+pytest-cov
+ruff
+pyfeuxdeforet-fr>=0.1.0

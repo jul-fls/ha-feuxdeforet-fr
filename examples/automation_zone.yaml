@@ -1,0 +1,11 @@
+alias: Feu proche de la maison
+triggers:
+  - trigger: geo_location
+    source: feuxdeforet_fr
+    zone: zone.home
+    event: enter
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      title: Feu proche
+      message: "{{ trigger.entity_id }} est dans la zone maison."

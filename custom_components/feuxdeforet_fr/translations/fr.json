@@ -1,0 +1,38 @@
+{
+  "title": "Feux de Foret",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurer Feux de Foret",
+        "description": "Récupère les données d'incendies depuis feuxdeforet.fr.",
+        "data": {
+          "name": "Nom",
+          "poll_interval": "Intervalle de mise à jour en secondes",
+          "create_region_sensors": "Créer un capteur par région",
+          "create_department_sensors": "Créer un capteur par département",
+          "create_fire_geolocations": "Créer une entité géographique par feu",
+          "geojson_last_update": "Paramètre GeoJSON last_update",
+          "geojson_nonce": "Header GeoJSON x-fdf-nonce"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Feux de Foret est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Feux de Foret",
+        "data": {
+          "poll_interval": "Intervalle de mise à jour en secondes",
+          "create_region_sensors": "Créer un capteur par région",
+          "create_department_sensors": "Créer un capteur par département",
+          "create_fire_geolocations": "Créer une entité géographique par feu",
+          "geojson_last_update": "Paramètre GeoJSON last_update",
+          "geojson_nonce": "Header GeoJSON x-fdf-nonce"
+        }
+      }
+    }
+  }
+}

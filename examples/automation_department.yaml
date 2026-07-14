@@ -1,0 +1,10 @@
+alias: Alerte feu dans le Var
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.var_fires
+    above: 0
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      title: Feu détecté dans le Var
+      message: "{{ states('sensor.var_fires') }} feu(x) actif(s) cartographié(s)."

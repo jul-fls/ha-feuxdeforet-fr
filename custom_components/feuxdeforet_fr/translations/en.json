@@ -1,0 +1,38 @@
+{
+  "title": "Feux de Foret",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Feux de Foret",
+        "description": "Fetch wildfire data from feuxdeforet.fr.",
+        "data": {
+          "name": "Name",
+          "poll_interval": "Polling interval in seconds",
+          "create_region_sensors": "Create one fire-count sensor per region",
+          "create_department_sensors": "Create one fire-count sensor per department",
+          "create_fire_geolocations": "Create one geo-location entity per mapped fire",
+          "geojson_last_update": "GeoJSON last_update parameter",
+          "geojson_nonce": "GeoJSON x-fdf-nonce header"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Feux de Foret is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Feux de Foret options",
+        "data": {
+          "poll_interval": "Polling interval in seconds",
+          "create_region_sensors": "Create one fire-count sensor per region",
+          "create_department_sensors": "Create one fire-count sensor per department",
+          "create_fire_geolocations": "Create one geo-location entity per mapped fire",
+          "geojson_last_update": "GeoJSON last_update parameter",
+          "geojson_nonce": "GeoJSON x-fdf-nonce header"
+        }
+      }
+    }
+  }
+}

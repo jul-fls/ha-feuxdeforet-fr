@@ -1,0 +1,27 @@
+type: vertical-stack
+cards:
+  - type: entities
+    title: Feux de Foret
+    entities:
+      - sensor.feux_de_foret_current_fires
+      - sensor.feux_de_foret_fires_over_24h
+      - sensor.feux_de_foret_fires_over_7_days
+      - sensor.feux_de_foret_fires_over_30_days
+      - sensor.feux_de_foret_fires_this_year
+      - sensor.feux_de_foret_mapped_fires
+  - type: map
+    title: Carte des feux
+    geo_location_sources:
+      - feuxdeforet_fr
+    hours_to_show: 24
+    default_zoom: 6
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: tile
+        entity: sensor.feux_de_foret_high_risk_zones
+      - type: tile
+        entity: sensor.feux_de_foret_very_high_risk_zones
+      - type: tile
+        entity: sensor.feux_de_foret_extreme_risk_zones

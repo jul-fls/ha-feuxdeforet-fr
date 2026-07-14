@@ -1,0 +1,55 @@
+{
+  "title": "Feux de Foret",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Feux de Foret",
+        "description": "Fetch wildfire data from feuxdeforet.fr.",
+        "data": {
+          "name": "Name",
+          "poll_interval": "Polling interval in seconds",
+          "create_region_sensors": "Create one fire-count sensor per region",
+          "create_department_sensors": "Create one fire-count sensor per department",
+          "create_fire_geolocations": "Create one geo-location entity per mapped fire",
+          "geojson_last_update": "GeoJSON last_update parameter",
+          "geojson_nonce": "GeoJSON x-fdf-nonce header"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Feux de Foret is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Feux de Foret options",
+        "data": {
+          "poll_interval": "Polling interval in seconds",
+          "create_region_sensors": "Create one fire-count sensor per region",
+          "create_department_sensors": "Create one fire-count sensor per department",
+          "create_fire_geolocations": "Create one geo-location entity per mapped fire",
+          "geojson_last_update": "GeoJSON last_update parameter",
+          "geojson_nonce": "GeoJSON x-fdf-nonce header"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_fires": { "name": "Current fires" },
+      "fires_24h": { "name": "Fires over 24h" },
+      "fires_7d": { "name": "Fires over 7 days" },
+      "fires_30d": { "name": "Fires over 30 days" },
+      "fires_year": { "name": "Fires this year" },
+      "weak_risk_zones": { "name": "Weak risk zones" },
+      "moderate_risk_zones": { "name": "Moderate risk zones" },
+      "high_risk_zones": { "name": "High risk zones" },
+      "very_high_risk_zones": { "name": "Very high risk zones" },
+      "extreme_risk_zones": { "name": "Extreme risk zones" },
+      "mapped_fires": { "name": "Mapped fires" },
+      "region_fires": { "name": "{zone} fires" },
+      "department_fires": { "name": "{zone} fires" }
+    }
+  }
+}
