@@ -43,9 +43,22 @@ class FeuxDeForetSensorDescription(SensorEntityDescription):
 
     value_fn: Callable[[FeuxDeForetCoordinator], Any]
     attrs_fn: Callable[[FeuxDeForetCoordinator], dict[str, Any]] = _empty_attrs
+    available_after_failure: bool = False
 
 
 NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
+    FeuxDeForetSensorDescription(
+        key="last_successful_update",
+        translation_key="last_successful_update",
+        icon="mdi:update",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda coordinator: coordinator.last_successful_update,
+        attrs_fn=lambda coordinator: {
+            "update_success": coordinator.last_update_success,
+            "poll_interval_seconds": int(coordinator.update_interval.total_seconds()),
+        },
+        available_after_failure=True,
+    ),
     FeuxDeForetSensorDescription(
         key="current_fires",
         translation_key="current_fires",
@@ -245,6 +258,13 @@ class FeuxDeForetNationalSensor(FeuxDeForetBaseSensor):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{DOMAIN}_{description.key}"
+
+    @property
+    def available(self) -> bool:
+        """Keep the last successful update visible after a refresh failure."""
+        if self.entity_description.available_after_failure:
+            return self.entity_description.value_fn(self.coordinator) is not None
+        return super().available
 
     @property
     def native_value(self) -> Any:

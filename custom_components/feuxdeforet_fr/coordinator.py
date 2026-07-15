@@ -52,6 +52,7 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
         self.client = client
         self._regions: tuple[Any, ...] | None = None
         self._regions_refreshed_at: datetime | None = None
+        self.last_successful_update: datetime | None = None
         poll_interval = int(
             entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
         )
@@ -61,7 +62,7 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
             name=DOMAIN,
             config_entry=entry,
             update_interval=timedelta(seconds=max(MIN_POLL_INTERVAL, poll_interval)),
-            always_update=False,
+            always_update=True,
         )
 
     async def _async_update_data(self) -> FeuxDeForetData:
@@ -114,7 +115,7 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
         )
         if geojson is not None:
             self._update_unmatched_fire_issue(unmatched_fire_ids)
-        return FeuxDeForetData(
+        data = FeuxDeForetData(
             stats=stats,
             regions=regions,
             home=home,
@@ -128,6 +129,8 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
             nearby_fire_ids=nearby_ids,
             unmatched_fire_ids=unmatched_fire_ids,
         )
+        self.last_successful_update = dt_util.utcnow()
+        return data
 
     async def _async_get_regions(self) -> tuple[Any, ...] | None:
         """Return cached regions, refreshing the mostly-static data daily."""

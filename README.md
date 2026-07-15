@@ -58,6 +58,7 @@ Then restart Home Assistant.
 The integration creates:
 
 - `sensor.feux_de_foret_current_fires`
+- `sensor.feux_de_foret_last_successful_update`
 - `sensor.feux_de_foret_fires_over_24h`
 - `sensor.feux_de_foret_fires_over_7_days`
 - `sensor.feux_de_foret_fires_over_30_days`
@@ -108,7 +109,8 @@ Every mapped fire becomes a `geo_location` entity with:
 These entities can be displayed on a map and used in automations.
 They are not attached to the aggregate device, so Home Assistant does not mix them with
 the device's sensor list.
-When a fire disappears from the feed, its entity is removed after a 24-hour grace period.
+When a fire disappears from the feed, its entity is removed immediately so stale fires
+cannot remain visible on Home Assistant maps.
 
 ### Homepage summary sensors
 

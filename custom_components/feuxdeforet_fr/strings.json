@@ -35,6 +35,7 @@
   },
   "entity": {
     "sensor": {
+      "last_successful_update": { "name": "Last successful update" },
       "current_fires": { "name": "Current fires" },
       "fires_24h": { "name": "Fires over 24h" },
       "fires_7d": { "name": "Fires over 7 days" },

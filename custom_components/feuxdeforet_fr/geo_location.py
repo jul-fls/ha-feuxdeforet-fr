@@ -11,12 +11,10 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_CREATE_FIRE_GEOLOCATIONS,
     DOMAIN,
-    FIRE_REMOVAL_GRACE_PERIOD,
 )
 from .coordinator import FeuxDeForetCoordinator
 from .helpers import distance_km
@@ -34,7 +32,6 @@ async def async_setup_entry(
 
     coordinator = entry.runtime_data.coordinator
     known_entities: dict[str, FeuxDeForetFireLocation] = {}
-    missing_since = {}
 
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(
@@ -59,10 +56,8 @@ async def async_setup_entry(
     def async_sync_fires() -> None:
         if coordinator.data.geojson is None:
             return
-        now = dt_util.utcnow()
         entities: list[FeuxDeForetFireLocation] = []
         for fire_id in sorted(coordinator.data.fires):
-            missing_since.pop(fire_id, None)
             if fire_id not in known_entities:
                 entity = FeuxDeForetFireLocation(coordinator, fire_id)
                 known_entities[fire_id] = entity
@@ -73,13 +68,9 @@ async def async_setup_entry(
         for fire_id, entity in list(known_entities.items()):
             if fire_id in coordinator.data.fires:
                 continue
-            first_missing = missing_since.setdefault(fire_id, now)
-            if now - first_missing < FIRE_REMOVAL_GRACE_PERIOD:
-                continue
             if entity.entity_id:
                 hass.async_create_task(entity.async_remove(force_remove=True))
             known_entities.pop(fire_id, None)
-            missing_since.pop(fire_id, None)
 
     async_sync_fires()
     entry.async_on_unload(coordinator.async_add_listener(async_sync_fires))
