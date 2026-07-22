@@ -17,7 +17,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import FeuxDeForetCoordinator
-from .helpers import distance_km
+from .helpers import distance_km, is_displayable_fire_location
 from .models import FireFeature
 
 
@@ -32,6 +32,11 @@ async def async_setup_entry(
 
     coordinator = entry.runtime_data.coordinator
     known_entities: dict[str, FeuxDeForetFireLocation] = {}
+    displayable_fire_ids = {
+        fire_id
+        for fire_id, fire in coordinator.data.fires.items()
+        if is_displayable_fire_location(fire)
+    }
 
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(
@@ -48,7 +53,7 @@ async def async_setup_entry(
             coordinator.data.geojson is not None
             and registry_entry.unique_id.startswith(f"{DOMAIN}_fire_")
             and registry_entry.unique_id.removeprefix(f"{DOMAIN}_fire_")
-            not in coordinator.data.fires
+            not in displayable_fire_ids
         ):
             entity_registry.async_remove(registry_entry.entity_id)
 
@@ -56,8 +61,13 @@ async def async_setup_entry(
     def async_sync_fires() -> None:
         if coordinator.data.geojson is None:
             return
+        current_fire_ids = {
+            fire_id
+            for fire_id, fire in coordinator.data.fires.items()
+            if is_displayable_fire_location(fire)
+        }
         entities: list[FeuxDeForetFireLocation] = []
-        for fire_id in sorted(coordinator.data.fires):
+        for fire_id in sorted(current_fire_ids):
             if fire_id not in known_entities:
                 entity = FeuxDeForetFireLocation(coordinator, fire_id)
                 known_entities[fire_id] = entity
@@ -66,7 +76,7 @@ async def async_setup_entry(
             async_add_entities(entities)
 
         for fire_id, entity in list(known_entities.items()):
-            if fire_id in coordinator.data.fires:
+            if fire_id in current_fire_ids:
                 continue
             if entity.entity_id:
                 hass.async_create_task(entity.async_remove(force_remove=True))

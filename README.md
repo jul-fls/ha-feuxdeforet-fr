@@ -109,8 +109,10 @@ Every mapped fire becomes a `geo_location` entity with:
 These entities can be displayed on a map and used in automations.
 They are not attached to the aggregate device, so Home Assistant does not mix them with
 the device's sensor list.
-When a fire disappears from the feed, its entity is removed immediately so stale fires
-cannot remain visible on Home Assistant maps.
+Points without an operational state are ignored because they do not contain enough
+information for a useful fire marker. When a fire disappears from the feed or loses
+that state, its entity is removed immediately so stale or incomplete fires cannot
+remain visible on Home Assistant maps.
 
 ### Homepage summary sensors
 

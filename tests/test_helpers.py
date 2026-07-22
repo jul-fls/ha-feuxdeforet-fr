@@ -28,8 +28,16 @@ features_from_geojson = helpers.features_from_geojson
 fire_proximity = helpers.fire_proximity
 home_fires_from_data = helpers.home_fires_from_data
 is_active_fire = helpers.is_active_fire
+is_displayable_fire_location = helpers.is_displayable_fire_location
 municipality_from_url = helpers.municipality_from_url
 normalize_status = helpers.normalize_status
+
+
+def test_fire_location_requires_an_operational_state() -> None:
+    """Incomplete probable points must not create map entities."""
+    assert is_displayable_fire_location(SimpleNamespace(state="attaque"))
+    assert not is_displayable_fire_location(SimpleNamespace(state=None))
+    assert not is_displayable_fire_location(SimpleNamespace(state="  "))
 
 
 def test_department_slug_from_url() -> None:

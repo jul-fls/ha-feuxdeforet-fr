@@ -282,6 +282,11 @@ def is_active_fire(fire: FireFeature) -> bool:
     return fire.status == PUBLISHED_STATUS
 
 
+def is_displayable_fire_location(fire: FireFeature) -> bool:
+    """Return whether a fire has enough data for a map entity."""
+    return bool(fire.state and fire.state.strip())
+
+
 def build_department_to_region(regions: tuple[Any, ...]) -> dict[str, str]:
     """Build a department slug to region slug lookup."""
     mapping: dict[str, str] = {}
