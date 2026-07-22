@@ -17,3 +17,5 @@ def test_missing_fire_entities_are_removed_immediately() -> None:
     assert "FIRE_REMOVAL_GRACE_PERIOD" not in source
     assert "FIRE_REMOVAL_GRACE_PERIOD" not in constants
     assert "entity.async_remove(force_remove=True)" in source
+    assert "hass.states.async_remove" in source
+    assert source.count("_remove_stale_registry_entries(") >= 3

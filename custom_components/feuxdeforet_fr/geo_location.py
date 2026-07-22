@@ -21,6 +21,30 @@ from .helpers import distance_km, is_displayable_fire_location
 from .models import FireFeature
 
 
+def _remove_stale_registry_entries(
+    hass: HomeAssistant,
+    entity_registry: er.EntityRegistry,
+    entry_id: str,
+    current_fire_ids: set[str],
+    removing_entity_ids: set[str] | None = None,
+) -> None:
+    """Remove legacy fire entities that are no longer displayable."""
+    removing_entity_ids = removing_entity_ids or set()
+    for registry_entry in er.async_entries_for_config_entry(
+        entity_registry, entry_id
+    ):
+        if not registry_entry.unique_id.startswith(f"{DOMAIN}_fire_"):
+            continue
+        fire_id = registry_entry.unique_id.removeprefix(f"{DOMAIN}_fire_")
+        if (
+            fire_id in current_fire_ids
+            or registry_entry.entity_id in removing_entity_ids
+        ):
+            continue
+        hass.states.async_remove(registry_entry.entity_id)
+        entity_registry.async_remove(registry_entry.entity_id)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -49,13 +73,10 @@ async def async_setup_entry(
             entity_registry.async_update_entity(
                 registry_entry.entity_id, device_id=None
             )
-        if (
-            coordinator.data.geojson is not None
-            and registry_entry.unique_id.startswith(f"{DOMAIN}_fire_")
-            and registry_entry.unique_id.removeprefix(f"{DOMAIN}_fire_")
-            not in displayable_fire_ids
-        ):
-            entity_registry.async_remove(registry_entry.entity_id)
+    if coordinator.data.geojson is not None:
+        _remove_stale_registry_entries(
+            hass, entity_registry, entry.entry_id, displayable_fire_ids
+        )
 
     @callback
     def async_sync_fires() -> None:
@@ -75,12 +96,23 @@ async def async_setup_entry(
         if entities:
             async_add_entities(entities)
 
+        removing_entity_ids: set[str] = set()
         for fire_id, entity in list(known_entities.items()):
             if fire_id in current_fire_ids:
                 continue
             if entity.entity_id:
+                hass.states.async_remove(entity.entity_id)
+                removing_entity_ids.add(entity.entity_id)
                 hass.async_create_task(entity.async_remove(force_remove=True))
             known_entities.pop(fire_id, None)
+
+        _remove_stale_registry_entries(
+            hass,
+            entity_registry,
+            entry.entry_id,
+            current_fire_ids,
+            removing_entity_ids,
+        )
 
     async_sync_fires()
     entry.async_on_unload(coordinator.async_add_listener(async_sync_fires))

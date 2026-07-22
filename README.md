@@ -163,7 +163,7 @@ type: map
 title: Feux en France
 geo_location_sources:
   - feuxdeforet_fr
-hours_to_show: 24
+hours_to_show: 0
 default_zoom: 6
 ```
 
