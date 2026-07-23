@@ -54,7 +54,8 @@ NATIONAL_SENSORS: tuple[FeuxDeForetSensorDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda coordinator: coordinator.last_successful_update,
         attrs_fn=lambda coordinator: {
-            "update_success": coordinator.last_update_success,
+            "update_success": coordinator.data_fresh,
+            "last_refresh_error": coordinator.last_refresh_error,
             "poll_interval_seconds": int(coordinator.update_interval.total_seconds()),
         },
         available_after_failure=True,

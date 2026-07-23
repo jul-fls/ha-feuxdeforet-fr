@@ -9,7 +9,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jul-fls/ha-feuxdeforet-fr/issues",
   "requirements": [
-    "pyfeuxdeforet-fr==0.3.0"
+    "pyfeuxdeforet-fr==0.3.1"
   ],
-  "version": "0.3.4"
+  "version": "0.3.5"
 }

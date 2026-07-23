@@ -31,6 +31,7 @@ is_active_fire = helpers.is_active_fire
 is_displayable_fire_location = helpers.is_displayable_fire_location
 municipality_from_url = helpers.municipality_from_url
 normalize_status = helpers.normalize_status
+snapshot_consistency_issues = helpers.snapshot_consistency_issues
 
 
 def test_fire_location_requires_an_operational_state() -> None:
@@ -38,6 +39,31 @@ def test_fire_location_requires_an_operational_state() -> None:
     assert is_displayable_fire_location(SimpleNamespace(state="attaque"))
     assert not is_displayable_fire_location(SimpleNamespace(state=None))
     assert not is_displayable_fire_location(SimpleNamespace(state="  "))
+
+
+def test_snapshot_consistency_rejects_empty_or_contradictory_updates() -> None:
+    """Broken upstream snapshots cannot replace the last coherent HA data."""
+    active_home_fire = SimpleNamespace(in_progress=True)
+    populated_geojson = {
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature"}],
+    }
+
+    assert snapshot_consistency_issues(
+        SimpleNamespace(valid_published=2),
+        (),
+        {"type": "FeatureCollection", "features": []},
+    ) == ("GeoJSON is empty while statistics report active fires",)
+    assert snapshot_consistency_issues(
+        SimpleNamespace(valid_published=0),
+        (active_home_fire,),
+        populated_geojson,
+    ) == ("statistics report zero while active fires are listed",)
+    assert snapshot_consistency_issues(
+        SimpleNamespace(valid_published=1),
+        (active_home_fire,),
+        populated_geojson,
+    ) == ()
 
 
 def test_department_slug_from_url() -> None:

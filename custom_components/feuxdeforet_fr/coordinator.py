@@ -31,6 +31,7 @@ from .helpers import (
     features_from_geojson,
     fire_proximity,
     home_fires_from_data,
+    snapshot_consistency_issues,
 )
 from .models import FeuxDeForetData
 
@@ -52,6 +53,9 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
         self._regions: tuple[Any, ...] | None = None
         self._regions_refreshed_at: datetime | None = None
         self.last_successful_update: datetime | None = None
+        self.data_fresh = True
+        self.last_refresh_error: str | None = None
+        self._upstream_degraded = False
         poll_interval = int(
             entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
         )
@@ -77,15 +81,45 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
                     ),
                 )
         except TimeoutError as err:
-            raise UpdateFailed("Timed out fetching feuxdeforet.fr data") from err
+            return self._retain_previous_snapshot(
+                "Timed out fetching feuxdeforet.fr data", err
+            )
         except Exception as err:
-            raise UpdateFailed(f"Error fetching feuxdeforet.fr data: {err}") from err
+            return self._retain_previous_snapshot(
+                f"Error fetching feuxdeforet.fr data: {err}", err
+            )
 
         if regions is None:
-            raise UpdateFailed("Missing regions payload from feuxdeforet.fr")
+            return self._retain_previous_snapshot(
+                "Missing regions payload from feuxdeforet.fr"
+            )
+
+        missing_payloads = [
+            name
+            for name, payload in (
+                ("stats", stats),
+                ("home", home),
+                ("geojson", geojson),
+            )
+            if payload is None
+        ]
+        if missing_payloads:
+            return self._retain_previous_snapshot(
+                "Incomplete feuxdeforet.fr refresh: missing "
+                + ", ".join(missing_payloads)
+            )
 
         department_to_region = build_department_to_region(regions)
         department_names = build_department_names(regions)
+        home_fires = home_fires_from_data(home)
+        consistency_issues = snapshot_consistency_issues(
+            stats, home_fires, geojson
+        )
+        if consistency_issues:
+            return self._retain_previous_snapshot(
+                "Inconsistent feuxdeforet.fr refresh: "
+                + "; ".join(consistency_issues)
+            )
         fires = features_from_geojson(
             geojson, department_to_region, department_names
         )
@@ -113,7 +147,7 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
             stats=stats,
             regions=regions,
             home=home,
-            home_fires=home_fires_from_data(home),
+            home_fires=home_fires,
             geojson=geojson,
             fires=fires,
             region_counts=build_region_counts(regions, fires),
@@ -123,8 +157,30 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
             nearby_fire_ids=nearby_ids,
             unmatched_fire_ids=unmatched_fire_ids,
         )
+        if self._upstream_degraded:
+            _LOGGER.info("feuxdeforet.fr data feed recovered")
+        self._upstream_degraded = False
+        self.data_fresh = True
+        self.last_refresh_error = None
         self.last_successful_update = dt_util.utcnow()
         return data
+
+    def _retain_previous_snapshot(
+        self,
+        reason: str,
+        cause: Exception | None = None,
+    ) -> FeuxDeForetData:
+        """Keep all entities on their last coherent snapshot during an outage."""
+        self.data_fresh = False
+        self.last_refresh_error = reason
+        if self.data is None:
+            if cause is not None:
+                raise UpdateFailed(reason) from cause
+            raise UpdateFailed(reason)
+        if not self._upstream_degraded:
+            _LOGGER.warning("%s; keeping the previous data snapshot", reason)
+        self._upstream_degraded = True
+        return self.data
 
     async def _async_get_regions(self) -> tuple[Any, ...] | None:
         """Return cached regions, refreshing the mostly-static data daily."""

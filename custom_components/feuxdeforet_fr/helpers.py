@@ -31,6 +31,30 @@ def extract_geojson_payload(payload: dict[str, Any] | None) -> dict[str, Any] | 
     return None
 
 
+def snapshot_consistency_issues(
+    stats: Any,
+    home_fires: tuple[HomeFire, ...],
+    geojson_payload: dict[str, Any],
+) -> tuple[str, ...]:
+    """Return reasons why a new upstream snapshot must not be published."""
+    issues: list[str] = []
+    geojson = extract_geojson_payload(geojson_payload)
+    features = geojson.get("features") if geojson is not None else None
+    feature_count = len(features) if isinstance(features, list) else 0
+    current_fires = int(getattr(stats, "valid_published", 0) or 0)
+    has_active_home_fire = any(fire.in_progress for fire in home_fires)
+
+    if geojson is None:
+        issues.append("invalid GeoJSON payload")
+    elif current_fires > 0 and feature_count == 0:
+        issues.append("GeoJSON is empty while statistics report active fires")
+
+    if current_fires == 0 and has_active_home_fire and feature_count > 0:
+        issues.append("statistics report zero while active fires are listed")
+
+    return tuple(issues)
+
+
 def features_from_geojson(
     payload: dict[str, Any] | None,
     department_to_region: dict[str, str],

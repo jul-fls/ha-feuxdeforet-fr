@@ -106,6 +106,7 @@ Every mapped fire becomes a `geo_location` entity with:
 - region slug;
 - raw `properties` from the GeoJSON payload.
 - `has_perimeter` and `perimeter_count` when the source also provides fire polygons.
+- Atomic refreshes: HTTP failures and inconsistent snapshots keep the last valid map and sensor values.
 
 These entities can be displayed on a map and used in automations.
 They are not attached to the aggregate device, so Home Assistant does not mix them with
