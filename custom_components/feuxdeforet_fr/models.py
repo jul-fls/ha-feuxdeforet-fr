@@ -22,6 +22,7 @@ class FireFeature:
     department_name: str | None
     department_code: str | None
     display_name: str
+    perimeter_count: int
     properties: dict[str, Any]
 
     @property

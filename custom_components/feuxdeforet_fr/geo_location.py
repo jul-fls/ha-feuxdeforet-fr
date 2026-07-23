@@ -195,6 +195,8 @@ class FeuxDeForetFireLocation(
             "department_slug": fire.department_slug,
             "region_slug": fire.region_slug,
             "url": fire.url,
+            "has_perimeter": fire.perimeter_count > 0,
+            "perimeter_count": fire.perimeter_count,
             "properties": fire.properties,
         }
 

@@ -8,6 +8,8 @@ from dataclasses import replace
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
+from pyfeuxdeforet_fr import extract_feature_geometries
+
 from .models import FireFeature, HomeFire, ZoneCount
 
 PUBLISHED_STATUS = "valide_publie"
@@ -66,15 +68,14 @@ def feature_from_geojson_feature(
     department_names: dict[str, str],
 ) -> FireFeature | None:
     """Parse a single GeoJSON feature."""
-    geometry = feature.get("geometry") or {}
-    coordinates = geometry.get("coordinates")
+    geometry = extract_feature_geometries(feature)
+    coordinates = geometry.point
     properties = feature.get("properties") or {}
     fire_id = properties.get("id")
-    if not isinstance(coordinates, list) or len(coordinates) < 2 or fire_id is None:
+    if coordinates is None or fire_id is None:
         return None
 
-    longitude = float(coordinates[0])
-    latitude = float(coordinates[1])
+    longitude, latitude = coordinates
     url = properties.get("url")
     url_department_slug = department_slug_from_url(url)
     department_slug = canonical_department_slug(url_department_slug)
@@ -102,6 +103,7 @@ def feature_from_geojson_feature(
         department_name=department_name,
         department_code=department_code,
         display_name=display_name,
+        perimeter_count=len(geometry.polygons),
         properties=dict(properties),
     )
 

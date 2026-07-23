@@ -105,6 +105,7 @@ Every mapped fire becomes a `geo_location` entity with:
 - department slug;
 - region slug;
 - raw `properties` from the GeoJSON payload.
+- `has_perimeter` and `perimeter_count` when the source also provides fire polygons.
 
 These entities can be displayed on a map and used in automations.
 They are not attached to the aggregate device, so Home Assistant does not mix them with

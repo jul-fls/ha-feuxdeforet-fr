@@ -105,6 +105,60 @@ def test_features_from_wrapped_geojson() -> None:
     assert is_active_fire(fire)
 
 
+def test_geometry_collection_fire_uses_point_and_reports_perimeter() -> None:
+    """A point plus fire perimeter remains usable as a geo-location."""
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "GeometryCollection",
+                    "geometries": [
+                        {
+                            "type": "Point",
+                            "coordinates": [-1.015069, 44.906987],
+                        },
+                        {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [-1.1, 44.8],
+                                    [-1.0, 44.9],
+                                    [-1.1, 44.8],
+                                ]
+                            ],
+                        },
+                    ],
+                },
+                "properties": {
+                    "id": "4367",
+                    "statut": "valide_publie",
+                    "etat": "attaque",
+                    "url": (
+                        "https://feuxdeforet.fr/"
+                        "gironde-33/saumos-22-07-2026-4367/"
+                    ),
+                },
+            }
+        ],
+    }
+
+    fires = features_from_geojson(
+        payload,
+        {"gironde": "nouvelle-aquitaine"},
+        {"gironde": "Gironde"},
+    )
+
+    fire = fires["4367"]
+    assert fire.longitude == -1.015069
+    assert fire.latitude == 44.906987
+    assert fire.name == "Feu de Saumos - Gironde (33)"
+    assert fire.state == "attaque"
+    assert fire.perimeter_count == 1
+    assert is_displayable_fire_location(fire)
+
+
 def test_duplicate_fire_labels_get_fire_id_suffix() -> None:
     """Duplicate municipality labels are disambiguated with the fire id."""
     payload = {

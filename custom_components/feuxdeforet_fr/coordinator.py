@@ -67,7 +67,7 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
     async def _async_update_data(self) -> FeuxDeForetData:
         """Fetch data from feuxdeforet.fr."""
         try:
-            async with asyncio.timeout(30):
+            async with asyncio.timeout(45):
                 regions, stats, home, geojson = await asyncio.gather(
                     self._async_get_regions(),
                     self.client.get_stats(),
