@@ -20,7 +20,6 @@ from .const import (
     DEFAULT_POLL_INTERVAL,
     DEFAULT_PROXIMITY_RADIUS_KM,
     DOMAIN,
-    GEOJSON_NONCE,
     MIN_POLL_INTERVAL,
     REGIONS_REFRESH_INTERVAL,
 )
@@ -75,11 +74,6 @@ class FeuxDeForetCoordinator(DataUpdateCoordinator[FeuxDeForetData]):
                     self.client.get_home(),
                     self.client.get_geojson(
                         last_update=self._geojson_last_update(),
-                        nonce=GEOJSON_NONCE,
-                        headers={
-                            "Accept": "application/geo+json, application/json",
-                            "Referer": "https://feuxdeforet.fr/fdf/cartographie/",
-                        },
                     ),
                 )
         except TimeoutError as err:

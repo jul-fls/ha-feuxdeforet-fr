@@ -256,8 +256,8 @@ This integration is unofficial and is not affiliated with feuxdeforet.fr.
 The GeoJSON endpoint currently works with:
 
 ```http
-x-fdf-nonce: 0
-Referer: https://feuxdeforet.fr/fdf/cartographie/
+X-FDF-Nonce: <dynamic nonce from /cartes/feux/>
+Referer: https://feuxdeforet.fr/cartes/feux/
 Accept: application/geo+json, application/json
 ```
 
